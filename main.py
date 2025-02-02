@@ -5,17 +5,29 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import asyncio
 import redis
 import json
+import configparser
 
-TOKEN = '7618331889:AAGhpyNyn1wHbjfHh2oifrtCKisXlQBERng'
-r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-conf = {
-    'bootstrap.servers': 'localhost:9092',
+config = configparser.ConfigParser()
+config.read("config.ini")
+
+TELEGRAM_TOKEN = config["TELEGRAM"]["TOKEN"]
+
+kafka_host = config["KAFKA"]["HOST"]
+kafka_port = int(config["KAFKA"]["PORT"])
+kafka_topic = config["KAFKA"]["TOPIC"]
+
+redis_host = config["REDIS"]["HOST"]
+redis_port = int(config["REDIS"]["PORT"])
+redis_number_database = int(config["REDIS"]["NUMBER_DATABASE"])
+
+r = redis.Redis(host=redis_host, port=redis_port, db=redis_number_database, decode_responses=True)
+kafka_conf = {
+    'bootstrap.servers': f'{kafka_host}:{kafka_port}',
     'group.id': 'my_group',
     'auto.offset.reset': 'earliest'  # если не можем найти смещение
 }
-consumer = Consumer(conf)
-topic = 'my_topic1'
-consumer.subscribe([topic])
+consumer = Consumer(kafka_conf)
+consumer.subscribe([kafka_topic])
 
 
 async def start(update: Update, context: CallbackContext) -> None:
@@ -92,7 +104,7 @@ def listen_kafka(app: Application):
         consumer.close()
 
 
-app = Application.builder().token(TOKEN).build()
+app = Application.builder().token(TELEGRAM_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, other_messages))
 # Запуск потока для прослушивания нажатий Enter
