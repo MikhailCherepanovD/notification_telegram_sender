@@ -15,6 +15,7 @@ TELEGRAM_TOKEN = config["TELEGRAM"]["TOKEN"]
 kafka_host = config["KAFKA"]["HOST"]
 kafka_port = int(config["KAFKA"]["PORT"])
 kafka_topic = config["KAFKA"]["TOPIC"]
+kafka_group = config["KAFKA"]["GROUP"]
 
 redis_host = config["REDIS"]["HOST"]
 redis_port = int(config["REDIS"]["PORT"])
@@ -23,8 +24,8 @@ redis_number_database = int(config["REDIS"]["NUMBER_DATABASE"])
 r = redis.Redis(host=redis_host, port=redis_port, db=redis_number_database, decode_responses=True)
 kafka_conf = {
     'bootstrap.servers': f'{kafka_host}:{kafka_port}',
-    'group.id': 'my_group',
-    'auto.offset.reset': 'earliest'  # если не можем найти смещение
+    'group.id': kafka_group,
+    'auto.offset.reset': 'latest'  # если не можем найти смещение
 }
 consumer = Consumer(kafka_conf)
 consumer.subscribe([kafka_topic])
@@ -45,8 +46,6 @@ async def other_messages(update: Update, context: CallbackContext) -> None:
 
 async def send_message(context: CallbackContext,user_name, msg) -> None:
     user_id = r.hget("user_storage", user_name)
-    s = r.hgetall("user_storage")
-    print(s)
     if user_id is None:
         print(f"User {user_id} not found")
         return
@@ -75,6 +74,8 @@ def get_userName_and_prepared_message(msg:str) ->tuple:
     try:
         parsed_json = json.loads(msg)
         user_name = parsed_json["telegram"]
+        if user_name=="":
+            return "",""
         prepared_message = get_prepared_message(parsed_json)
         return user_name,prepared_message
     except json.JSONDecodeError as e:
@@ -82,7 +83,6 @@ def get_userName_and_prepared_message(msg:str) ->tuple:
         return "", ""
 
 def listen_kafka(app: Application):
-    """Поток, слушающий нажатие Enter для отправки рассылки."""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -97,7 +97,7 @@ def listen_kafka(app: Application):
                     raise KafkaException(msg.error())
             else:
                 msg_str = msg.value().decode("utf-8")
-                print("Recieved message")
+                print("Message received")
                 user_name,prepared_message = get_userName_and_prepared_message(msg_str)
                 loop.run_until_complete(send_message(app, user_name, prepared_message))
     finally:
