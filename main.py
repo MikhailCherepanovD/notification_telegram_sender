@@ -5,6 +5,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import asyncio
 import redis
 import json
+import signal
+import sys
 import configparser
 
 config = configparser.ConfigParser()
@@ -88,8 +90,9 @@ def get_userName_and_prepared_message(msg:str) ->tuple:
 def listen_kafka(app: Application):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    try:
-        while True:
+
+    while True:
+        try:
             msg = consumer.poll(timeout=2.0)  # читаем сообщение
             if msg is None:
                 continue
@@ -103,15 +106,22 @@ def listen_kafka(app: Application):
                 print('Message received')
                 user_name,prepared_message = get_userName_and_prepared_message(msg_str)
                 loop.run_until_complete(send_message(app, user_name, prepared_message))
-    finally:
-        consumer.close()
+        except Exception as e:
+            print("Error in listen_kafka:", e)
 
-print("Telegram consumer was launched.")
-app = Application.builder().token(TELEGRAM_TOKEN).build()
-app.add_handler(CommandHandler('start', start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, other_messages))
-# Запуск потока для прослушивания нажатий Enter
-thread = threading.Thread(target=listen_kafka, args=(app,), daemon=True)
-thread.start()
+def shutdown_signal_handler(sig, frame):
+    print("Shutting down...")
+    consumer.close()
+    sys.exit(0)
+if __name__ == "__main__":
+    print("Telegram consumer was launched.")
 
-app.run_polling()
+    signal.signal(signal.SIGINT, shutdown_signal_handler)
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, other_messages))
+    # Запуск потока для прослушивания нажатий Enter
+    thread = threading.Thread(target=listen_kafka, args=(app,), daemon=True)
+    thread.start()
+
+    app.run_polling()
