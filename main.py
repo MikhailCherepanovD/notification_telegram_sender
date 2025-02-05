@@ -1,3 +1,5 @@
+from time import sleep
+
 from confluent_kafka import Consumer, KafkaException, KafkaError
 import threading
 from telegram import Update
@@ -53,6 +55,7 @@ async def send_message(context: CallbackContext,user_name, msg) -> None:
         return
     try:
         await context.bot.send_message(chat_id=user_id, text=msg,parse_mode='Markdown')
+        print(f'Sending in chat with id = {user_id}')
     except Exception as e:
         print(f'Error sending user {user_id}: {e}')
 
@@ -94,6 +97,8 @@ def listen_kafka(app: Application):
     while True:
         try:
             msg = consumer.poll(timeout=2.0)  # читаем сообщение
+            sleep(1)
+            print("listen kafka")
             if msg is None:
                 continue
             if msg.error():
@@ -107,7 +112,8 @@ def listen_kafka(app: Application):
                 user_name,prepared_message = get_userName_and_prepared_message(msg_str)
                 loop.run_until_complete(send_message(app, user_name, prepared_message))
         except Exception as e:
-            print("Error in listen_kafka:", e)
+            print("Error in listen_kafka:",e)
+            continue
 
 def shutdown_signal_handler(sig, frame):
     print("Shutting down...")
