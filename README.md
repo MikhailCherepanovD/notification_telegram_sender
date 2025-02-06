@@ -6,4 +6,4 @@ The server:
 
 * Implements simple logic of a Telegram bot that saved chat_id in Redis key-value storage to retain chat_id after a container restart;
 
-* Is a consumer of Apache Kafka and sends received messages in telegram.
+* Is a consumer of Apache Kafka, prepares and sends received messages in telegram.
